@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SEO Audit Pro — Deep Site Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  /* ─── Reset & Base ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --surface3: #1e2330;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --text-muted: #6b7280;
+    --text-dim: #9ca3af;
+    --accent: #6366f1;
+    --accent-dim: rgba(99,102,241,0.15);
+    --accent-glow: rgba(99,102,241,0.3);
+    --green: #10b981;
+    --green-dim: rgba(16,185,129,0.15);
+    --yellow: #f59e0b;
+    --yellow-dim: rgba(245,158,11,0.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.15);
+    --orange: #f97316;
+    --orange-dim: rgba(249,115,22,0.15);
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  input, button, select { font-family: inherit; }
+
+  /* ─── Layout ─── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ─── Header ─── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 0;
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,12,16,0.92);
+    backdrop-filter: blur(12px);
+  }
+  .header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
+  }
+  .logo-icon {
+    width: 32px; height: 32px; background: var(--accent);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 20px;
+    background: var(--accent-dim); color: var(--accent);
+    border: 1px solid rgba(99,102,241,0.25); font-weight: 500;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+
+  /* ─── Hero ─── */
+  .hero {
+    padding: 72px 0 56px;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .hero-eyebrow::before, .hero-eyebrow::after {
+    content: ''; height: 1px; width: 40px; background: var(--accent-dim);
+  }
+  h1 {
+    font-size: clamp(36px, 5vw, 58px); font-weight: 700;
+    letter-spacing: -0.03em; line-height: 1.1;
+    color: var(--text); margin-bottom: 16px;
+  }
+  h1 span { color: var(--accent); }
+  .hero-sub {
+    font-size: 17px; color: var(--text-dim); max-width: 520px; margin: 0 auto 40px;
+    line-height: 1.7;
+  }
+
+  /* ─── Search Bar ─── */
+  .search-wrap {
+    max-width: 680px; margin: 0 auto;
+    display: flex; gap: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 6px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  #url-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    padding: 12px 16px; font-size: 15px; color: var(--text);
+    placeholder-color: var(--text-muted);
+  }
+  #url-input::placeholder { color: var(--text-muted); }
+  #scan-btn {
+    background: var(--accent); color: #fff; border: none;
+    padding: 12px 28px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; letter-spacing: 0.01em;
+    transition: background 0.15s, transform 0.1s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #scan-btn:hover { background: #5254d4; }
+  #scan-btn:active { transform: scale(0.98); }
+  #scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ─── Spinner ─── */
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Live Log ─── */
+  #log-section {
+    max-width: 680px; margin: 24px auto 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    display: none;
+  }
+  .log-header {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-muted); font-family: var(--mono);
+  }
+  .log-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .log-dot.active { background: var(--green); animation: pulse 1s infinite; }
+  .log-dot.idle { background: var(--text-muted); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  #log-output {
+    padding: 14px 16px; font-family: var(--mono); font-size: 12px;
+    line-height: 1.8; max-height: 220px; overflow-y: auto; color: var(--text-dim);
+  }
+  .log-line { display: flex; gap: 12px; }
+  .log-time { color: var(--text-muted); min-width: 60px; }
+  .log-ok { color: var(--green); }
+  .log-warn { color: var(--yellow); }
+  .log-fail { color: var(--red); }
+  .log-info { color: var(--accent); }
+  .log-step { color: var(--text-dim); }
+
+  /* ─── Progress Bar ─── */
+  #progress-bar-wrap {
+    max-width: 680px; margin: 12px auto 0; display: none;
+    background: var(--surface); border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  #progress-bar {
+    height: 4px; background: var(--accent);
+    width: 0%; transition: width 0.4s ease;
+    border-radius: 6px;
+  }
+
+  /* ─── Results ─── */
+  #results { display: none; padding-bottom: 80px; }
+
+  /* ─── Score Card ─── */
+  .score-hero {
+    padding: 48px 0 40px;
+    display: flex; align-items: center; gap: 48px;
+    flex-wrap: wrap;
+  }
+  .score-circle-wrap { position: relative; width: 200px; height: 200px; flex-shrink: 0; }
+  .score-canvas-bg {
+    position: absolute; inset: 0;
+  }
+  .score-number {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .score-pct {
+    font-size: 48px; font-weight: 700; letter-spacing: -0.04em; line-height: 1;
+  }
+  .score-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-muted); margin-top: 4px;
+  }
+  .score-meta { flex: 1; min-width: 280px; }
+  .score-meta h2 {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px;
+  }
+  .score-meta p { color: var(--text-dim); font-size: 15px; margin-bottom: 24px; line-height: 1.7; }
+  .score-verdict {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  }
+  .verdict-good { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+  .verdict-warn { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(249,115,22,0.25); }
+  .verdict-bad { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.25); }
+
+  /* ─── Category Grid ─── */
+  .section-title {
+    font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted); font-weight: 600; margin-bottom: 16px;
+    padding-top: 8px;
+  }
+  .category-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px; margin-bottom: 40px;
+  }
+  .cat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .cat-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .cat-card-active { border-color: var(--accent) !important; background: var(--accent-dim) !important; }
+  .cat-icon { font-size: 22px; margin-bottom: 12px; }
+  .cat-name { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+  .cat-score { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
+  .cat-max { font-size: 14px; color: var(--text-muted); font-weight: 400; }
+  .cat-bar-wrap { margin-top: 12px; height: 3px; background: var(--border); border-radius: 2px; }
+  .cat-bar { height: 3px; border-radius: 2px; transition: width 0.6s ease; }
+  .bar-green { background: var(--green); }
+  .bar-yellow { background: var(--yellow); }
+  .bar-red { background: var(--red); }
+
+  /* ─── Chart Row ─── */
+  .chart-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 40px;
+  }
+  @media (max-width: 640px) { .chart-row { grid-template-columns: 1fr; } }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+  }
+  .chart-title { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; font-weight: 500; }
+
+  /* ─── Findings Accordion ─── */
+  .findings-section { margin-bottom: 40px; }
+  .accordion-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 8px; overflow: hidden;
+  }
+  .accordion-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 20px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .accordion-header:hover { background: var(--surface2); }
+  .accordion-icon { font-size: 20px; }
+  .accordion-title { font-size: 15px; font-weight: 600; flex: 1; }
+  .accordion-meta {
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .acc-score { font-size: 14px; font-weight: 700; color: var(--text-muted); }
+  .acc-chevron {
+    color: var(--text-muted); font-size: 18px; transition: transform 0.2s;
+  }
+  .acc-chevron.open { transform: rotate(180deg); }
+  .accordion-body { display: none; padding: 0 20px 20px; }
+  .accordion-body.open { display: block; }
+  .check-list { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-radius: 8px;
+    font-size: 13px; line-height: 1.6;
+  }
+  .check-item.pass { background: var(--green-dim); border: 1px solid rgba(16,185,129,0.18); }
+  .check-item.warn { background: var(--yellow-dim); border: 1px solid rgba(245,158,11,0.18); }
+  .check-item.fail { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.18); }
+  .check-status { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .check-content { flex: 1; }
+  .check-title { font-weight: 600; margin-bottom: 2px; color: var(--text); }
+  .check-detail { color: var(--text-dim); font-size: 12px; }
+  .check-fix { margin-top: 6px; font-size: 12px; color: var(--text-muted); font-style: italic; }
+  .check-fix::before { content: '↳ '; color: var(--accent); }
+
+  /* ─── Download Button ─── */
+  .dl-row {
+    display: flex; justify-content: center; gap: 12px; padding: 8px 0 24px;
+  }
+  .dl-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border2); background: var(--surface);
+    color: var(--text); transition: all 0.15s;
+  }
+  .dl-btn:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+  .dl-btn-primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .dl-btn-primary:hover { background: #5254d4; color: #fff; }
+
+  /* ─── Error state ─── */
+  #error-box {
+    max-width: 680px; margin: 24px auto 0; display: none;
+    background: var(--red-dim); border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 12px; padding: 20px 24px;
+  }
+  .err-title { font-weight: 600; color: var(--red); margin-bottom: 4px; }
+  .err-detail { font-size: 13px; color: var(--text-dim); }
+
+  /* ─── Divider ─── */
+  .divider { height: 1px; background: var(--border); margin: 8px 0 32px; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 700px) {
+    .score-hero { flex-direction: column; text-align: center; align-items: center; }
+    h1 { font-size: 32px; }
+  }
+  @media (max-width: 540px) {
+    .search-wrap { flex-direction: column; }
+    #scan-btn { justify-content: center; }
+  }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">🔍</div>
+        SEO Audit Pro
+      </div>
+      <span class="badge">Free Tool</span>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-eyebrow">Deep Site Scanner</div>
+    <h1>Your site's SEO,<br /><span>fully exposed.</span></h1>
+    <p class="hero-sub">Paste any URL and get a real-time analysis of 25+ SEO factors — scored, ranked, and ready to fix.</p>
+
+    <!-- URL Input -->
+    <div class="search-wrap">
+      <input id="url-input" type="url" placeholder="https://example.com" autocomplete="off" spellcheck="false" />
+      <button id="scan-btn" onclick="startScan()">
+        <span id="btn-icon">⚡</span>
+        <span id="btn-text">Deep Scan</span>
+      </button>
+    </div>
+
+    <!-- Progress bar -->
+    <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
+    <!-- Live log terminal -->
+    <div id="log-section">
+      <div class="log-header">
+        <div class="log-dot idle" id="log-dot"></div>
+        <span id="log-status">Ready</span>
+      </div>
+      <div id="log-output"></div>
+    </div>
+
+    <!-- Error box -->
+    <div id="error-box">
+      <div class="err-title" id="err-title">⚠️ Scan failed</div>
+      <div class="err-detail" id="err-detail"></div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<div id="results">
+  <div class="container">
+
+    <!-- SCORE HERO -->
+    <div class="score-hero">
+      <div class="score-circle-wrap">
+        <canvas id="scoreDonut" width="200" height="200" class="score-canvas-bg"
+          role="img" aria-label="Overall SEO health score gauge">Overall SEO score.</canvas>
+        <div class="score-number">
+          <div class="score-pct" id="score-display">--</div>
+          <div class="score-label">SEO Score</div>
+        </div>
+      </div>
+      <div class="score-meta">
+        <h2 id="score-heading">Analyzing...</h2>
+        <p id="score-description">Running deep analysis...</p>
+        <div id="score-verdict" class="score-verdict">Calculating…</div>
+      </div>
+    </div>
+
+    <!-- CATEGORY SCORECARDS -->
+    <div class="section-title">Category Breakdown</div>
+    <div class="category-grid" id="cat-grid"><!-- populated by JS --></div>
+
+    <!-- CHARTS -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">Score by category</div>
+        <div style="position:relative;height:220px;">
+          <canvas id="radarChart" role="img" aria-label="Radar chart showing SEO scores by category">SEO category scores.</canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Issue distribution</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:var(--text-muted);">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#10b981;display:inline-block;"></span>Passed</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#f59e0b;display:inline-block;"></span>Warnings</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#ef4444;display:inline-block;"></span>Failed</span>
+        </div>
+        <div style="position:relative;height:180px;">
+          <canvas id="issueChart" role="img" aria-label="Doughnut chart of passed warnings and failed SEO checks">Issue breakdown.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOWNLOAD ROW -->
+    <div class="dl-row">
+      <button class="dl-btn dl-btn-primary" onclick="downloadReport('html')">⬇ Download HTML Report</button>
+      <button class="dl-btn" onclick="downloadReport('txt')">⬇ Download TXT Report</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- FINDINGS ACCORDION -->
+    <div class="section-title">Detailed Findings</div>
+    <div class="findings-section" id="findings"><!-- populated by JS --></div>
+
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// SEO AUDIT PRO — Core Engine
+// Uses allorigins.win proxy to bypass CORS and fetch raw HTML
+// ─────────────────────────────────────────────────────────────────
+
+const PROXY = "https://api.allorigins.win/raw?url=";
+
+// Global store for report data
+let auditData = {};
+let chartInstances = {};
+
+// ─── Utility: log to terminal ───────────────────────────────────
+function log(msg, type = "step") {
+  const el = document.getElementById("log-output");
+  const time = new Date().toLocaleTimeString("en", { hour12: false });
+  const div = document.createElement("div");
+  div.className = "log-line";
+  div.innerHTML = `<span class="log-time">${time}</span><span class="log-${type}">${msg}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Utility: update progress bar ───────────────────────────────
+function setProgress(pct) {
+  document.getElementById("progress-bar").style.width = pct + "%";
+}
+
+// ─── Utility: normalize URL ─────────────────────────────────────
+function normalizeURL(raw) {
+  raw = raw.trim();
+  if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+  return raw;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MAIN SCAN ENTRY POINT
+// ─────────────────────────────────────────────────────────────────
+async function startScan() {
+  const rawUrl = document.getElementById("url-input").value;
+  if (!rawUrl) { alert("Please enter a URL to scan."); return; }
+
+  const url = normalizeURL(rawUrl);
+  document.getElementById("url-input").value = url;
+
+  // Reset UI
+  document.getElementById("results").style.display = "none";
+  document.getElementById("error-box").style.display = "none";
+  document.getElementById("log-section").style.display = "block";
+  document.getElementById("progress-bar-wrap").style.display = "block";
+  document.getElementById("log-output").innerHTML = "";
+  document.getElementById("scan-btn").disabled = true;
+  document.getElementById("btn-text").textContent = "Scanning…";
+  document.getElementById("btn-icon").innerHTML = '<div class="spinner"></div>';
+  document.getElementById("log-dot").className = "log-dot active";
+  document.getElementById("log-status").textContent = "Scanning…";
+  setProgress(0);
+
+  try {
+    log(`Initiating deep scan for: ${url}`, "info");
+    log("Connecting to proxy server…", "step");
+    setProgress(5);
+
+    // ── Fetch raw HTML via CORS proxy ──
+    const proxyUrl = PROXY + encodeURIComponent(url);
+    let html = "";
+    let fetchFailed = false;
+
+    try {
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      html = await res.text();
+      log(`✓ HTML fetched (${(html.length / 1024).toFixed(1)} KB)`, "ok");
+    } catch (e) {
+      fetchFailed = true;
+      log(`⚠ Proxy fetch failed: ${e.message} — running URL-only analysis`, "warn");
+    }
+
+    setProgress(20);
+
+    // Parse the DOM from fetched HTML string
+    const parser = new DOMParser();
+    const doc = fetchFailed ? document.implementation.createHTMLDocument() : parser.parseFromString(html, "text/html");
+
+    // Run all checks
+    log("Analyzing URL structure…", "step");
+    const urlScore = analyzeURL(url);
+    setProgress(30);
+    log(`  URL checks complete — ${urlScore.earned}/${urlScore.max} pts`, urlScore.earned >= urlScore.max * 0.7 ? "ok" : "warn");
+    await sleep(200);
+
+    log("Extracting on-page metadata…", "step");
+    const metaScore = analyzeMeta(doc, html);
+    setProgress(45);
+    log(`  Metadata checks — ${metaScore.earned}/${metaScore.max} pts`, metaScore.earned >= metaScore.max * 0.7 ? "ok" : "warn");
+    await sleep(200);
+
+    log("Evaluating content quality…", "step");
+    const contentScore = analyzeContent(doc, html);
+    setProgress(60);
+    log(`  Content analysis — ${contentScore.earned}/${contentScore.max} pts`, contentScore.earned >= contentScore.max * 0.7 ? "ok" : "warn");
+    await sleep(200);
+
+    log("Running technical SEO checks…", "step");
+    const techScore = analyzeTechnical(doc, html, url);
+    setProgress(75);
+    log(`  Technical checks — ${techScore.earned}/${techScore.max} pts`, techScore.earned >= techScore.max * 0.7 ? "ok" : "warn");
+    await sleep(200);
+
+    log("Auditing link health…", "step");
+    const linkScore = analyzeLinks(doc, html, url);
+    setProgress(90);
+    log(`  Link audit — ${linkScore.earned}/${linkScore.max} pts`, linkScore.earned >= linkScore.max * 0.7 ? "ok" : "warn");
+    await sleep(200);
+
+    // Calculate total
+    const total = urlScore.earned + metaScore.earned + contentScore.earned + techScore.earned + linkScore.earned;
+    const maxTotal = urlScore.max + metaScore.max + contentScore.max + techScore.max + linkScore.max;
+    const pct = Math.round((total / maxTotal) * 100);
+
+    log(`Scan complete. Overall score: ${pct}/100`, pct >= 80 ? "ok" : pct >= 50 ? "warn" : "fail");
+    setProgress(100);
+
+    // Store audit data for download
+    auditData = { url, pct, total, maxTotal, urlScore, metaScore, contentScore, techScore, linkScore, fetchFailed };
+
+    // Render results
+    renderResults(auditData);
+
+    // Reset button
+    document.getElementById("scan-btn").disabled = false;
+    document.getElementById("btn-text").textContent = "Scan Again";
+    document.getElementById("btn-icon").textContent = "⚡";
+    document.getElementById("log-dot").className = "log-dot idle";
+    document.getElementById("log-status").textContent = "Complete";
+
+  } catch (err) {
+    showError("Scan error", err.message);
+    document.getElementById("scan-btn").disabled = false;
+    document.getElementById("btn-text").textContent = "Deep Scan";
+    document.getElementById("btn-icon").textContent = "⚡";
+    document.getElementById("log-dot").className = "log-dot idle";
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─────────────────────────────────────────────────────────────────
+// ANALYSIS MODULE 1: URL Structure (10 pts)
+// ─────────────────────────────────────────────────────────────────
+function analyzeURL(url) {
+  const checks = [];
+  let earned = 0;
+  const max = 10;
+
+  // HTTPS check (5 pts)
+  const isHttps = url.startsWith("https://");
+  if (isHttps) {
+    earned += 5;
+    checks.push({ status: "pass", title: "HTTPS Enabled", detail: "Secure connection is active.", pts: 5 });
+  } else {
+    checks.push({ status: "fail", title: "No HTTPS", detail: "Site uses HTTP — insecure and penalized by Google.", fix: "Install an SSL certificate and redirect all HTTP to HTTPS.", pts: 0 });
+  }
+
+  // Uppercase / underscores in URL (2 pts)
+  const urlPath = url.replace(/^https?:\/\/[^\/]+/, "");
+  const hasUppercase = /[A-Z]/.test(urlPath);
+  const hasUnderscores = /_/.test(urlPath);
+  if (!hasUppercase && !hasUnderscores) {
+    earned += 2;
+    checks.push({ status: "pass", title: "Clean URL casing", detail: "No uppercase or underscore characters in URL path.", pts: 2 });
+  } else {
+    const issues = [];
+    if (hasUppercase) issues.push("uppercase letters");
+    if (hasUnderscores) issues.push("underscores");
+    checks.push({ status: "warn", title: "URL case issues", detail: `URL path contains ${issues.join(" and ")}. Search engines prefer lowercase with hyphens.`, fix: "Use lowercase letters and hyphens instead of underscores.", pts: 0 });
+  }
+
+  // URL length (2 pts)
+  const urlLen = url.length;
+  if (urlLen <= 75) {
+    earned += 2;
+    checks.push({ status: "pass", title: `URL length OK (${urlLen} chars)`, detail: "URL is concise and within recommended length.", pts: 2 });
+  } else if (urlLen <= 115) {
+    earned += 1;
+    checks.push({ status: "warn", title: `URL length moderate (${urlLen} chars)`, detail: "URL is slightly long. Aim for under 75 characters.", fix: "Shorten URL slugs and remove redundant path segments.", pts: 1 });
+  } else {
+    checks.push({ status: "fail", title: `URL too long (${urlLen} chars)`, detail: "Excessively long URLs are harder for search engines to parse.", fix: "Reduce URL depth and remove unnecessary parameters.", pts: 0 });
+  }
+
+  // Path depth (1 pt)
+  const depth = (url.match(/\//g) || []).length - 2;
+  if (depth <= 3) {
+    earned += 1;
+    checks.push({ status: "pass", title: `URL depth OK (${depth} levels)`, detail: "Shallow URL structure helps crawlers and users navigate easily.", pts: 1 });
+  } else {
+    checks.push({ status: "warn", title: `Deep URL path (${depth} levels)`, detail: "URLs with more than 3 directory levels may rank less well.", fix: "Flatten site architecture where possible.", pts: 0 });
+  }
+
+  return { earned, max, checks, label: "URL Structure" };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ANALYSIS MODULE 2: On-Page Metadata (25 pts)
+// ─────────────────────────────────────────────────────────────────
+function analyzeMeta(doc, html) {
+  const checks = [];
+  let earned = 0;
+  const max = 25;
+
+  // ── Title Tag (10 pts) ──
+  const title = doc.querySelector("title");
+  const titleText = title ? title.textContent.trim() : "";
+  if (!titleText) {
+    checks.push({ status: "fail", title: "Missing Title Tag", detail: "No <title> element found. This is critical for SEO.", fix: "Add a descriptive <title> tag with 50–60 characters.", pts: 0 });
+  } else {
+    const tLen = titleText.length;
+    if (tLen >= 50 && tLen <= 60) {
+      earned += 10;
+      checks.push({ status: "pass", title: `Title Tag (${tLen} chars)`, detail: `"${titleText.slice(0,60)}" — optimal length.`, pts: 10 });
+    } else if (tLen >= 35 && tLen <= 70) {
+      earned += 7;
+      checks.push({ status: "warn", title: `Title length OK-ish (${tLen} chars)`, detail: `"${titleText.slice(0,60)}${tLen>60?'…':''}" — aim for 50–60 chars for best display in SERPs.`, fix: tLen < 50 ? "Expand the title to include primary keyword." : "Trim the title to avoid truncation in search results.", pts: 7 });
+    } else {
+      earned += 4;
+      checks.push({ status: "fail", title: `Title too ${tLen < 35 ? "short" : "long"} (${tLen} chars)`, detail: `"${titleText.slice(0,60)}${tLen>60?'…':''}" — ${tLen<35?"too brief to convey relevance":"may be truncated in SERPs"}.`, fix: "Rewrite title to be 50–60 characters with primary keyword near the start.", pts: 4 });
+    }
+  }
+
+  // ── Meta Description (10 pts) ──
+  const desc = doc.querySelector('meta[name="description"]');
+  const descText = desc ? desc.getAttribute("content") || "" : "";
+  if (!descText) {
+    checks.push({ status: "fail", title: "Missing Meta Description", detail: "No meta description found. Google often auto-generates one which may not be optimal.", fix: "Add a unique meta description of 150–160 characters.", pts: 0 });
+  } else {
+    const dLen = descText.length;
+    if (dLen >= 150 && dLen <= 160) {
+      earned += 10;
+      checks.push({ status: "pass", title: `Meta Description (${dLen} chars)`, detail: `"${descText.slice(0,100)}…" — perfect length.`, pts: 10 });
+    } else if (dLen >= 120 && dLen <= 180) {
+      earned += 7;
+      checks.push({ status: "warn", title: `Meta Description (${dLen} chars)`, detail: `Acceptable but not optimal. Target 150–160 characters.`, fix: dLen < 150 ? "Expand description to add more context." : "Trim to avoid truncation in SERPs.", pts: 7 });
+    } else {
+      earned += 3;
+      checks.push({ status: "fail", title: `Meta Description ${dLen === 0 ? "empty" : dLen < 120 ? "too short" : "too long"} (${dLen} chars)`, detail: `Length of ${dLen} chars is ${dLen<120?"too brief":"excessive"}.`, fix: "Write a compelling 150–160 character description including the primary keyword.", pts: 3 });
+    }
+  }
+
+  // ── Heading Structure (5 pts) ──
+  const h1s = doc.querySelectorAll("h1");
+  const h2s = doc.querySelectorAll("h2");
+  const h3s = doc.querySelectorAll("h3");
+  const h1Count = h1s.length;
+
+  if (h1Count === 1) {
+    earned += 3;
+    checks.push({ status: "pass", title: `Single H1 tag found`, detail: `"${h1s[0]?.textContent?.trim().slice(0,60) || "—"}" — perfect. One H1 per page is ideal.`, pts: 3 });
+  } else if (h1Count === 0) {
+    checks.push({ status: "fail", title: "No H1 tag found", detail: "Missing H1 heading. This is a major on-page SEO signal.", fix: "Add exactly one H1 containing your primary keyword.", pts: 0 });
+  } else {
+    earned += 1;
+    checks.push({ status: "warn", title: `Multiple H1 tags (${h1Count})`, detail: `Found ${h1Count} H1 tags — only one is recommended per page.`, fix: "Consolidate H1 tags. Use H2–H6 for subheadings.", pts: 1 });
+  }
+
+  if (h2s.length > 0) {
+    earned += 2;
+    checks.push({ status: "pass", title: `Heading hierarchy present`, detail: `${h2s.length} H2 tag${h2s.length!==1?"s":""}, ${h3s.length} H3 tag${h3s.length!==1?"s":""}. Good logical structure.`, pts: 2 });
+  } else {
+    checks.push({ status: "warn", title: "No H2 subheadings", detail: "Page lacks H2 tags. Proper heading hierarchy improves scannability and SEO.", fix: "Break content into sections with H2 subheadings.", pts: 0 });
+  }
+
+  return { earned, max, checks, label: "On-Page Metadata" };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ANALYSIS MODULE 3: Content Quality (20 pts)
+// ─────────────────────────────────────────────────────────────────
+function analyzeContent(doc, html) {
+  const checks = [];
+  let earned = 0;
+  const max = 20;
+
+  // Extract visible text from body
+  const bodyClone = doc.body ? doc.body.cloneNode(true) : document.createElement("body");
+  // Remove scripts, styles, noscript from text extraction
+  bodyClone.querySelectorAll("script,style,noscript,nav,footer,header").forEach(e => e.remove());
+  const bodyText = bodyClone.textContent || "";
+  const words = bodyText.trim().split(/\s+/).filter(w => w.length > 2);
+  const wordCount = words.length;
+
+  // ── Word Count (6 pts) ──
+  if (wordCount >= 800) {
+    earned += 6;
+    checks.push({ status: "pass", title: `Solid word count (${wordCount} words)`, detail: `Good content depth. Pages with 800+ words tend to rank better.`, pts: 6 });
+  } else if (wordCount >= 300) {
+    earned += 3;
+    checks.push({ status: "warn", title: `Thin content (${wordCount} words)`, detail: `Under 800 words may limit ranking potential for competitive queries.`, fix: "Expand content to 800–1500+ words with relevant, helpful information.", pts: 3 });
+  } else if (wordCount >= 1) {
+    checks.push({ status: "fail", title: `Very thin content (${wordCount} words)`, detail: `Only ${wordCount} words detected. This is considered thin content by Google.`, fix: "Add substantial, original content of at least 300 words.", pts: 0 });
+  } else {
+    checks.push({ status: "fail", title: "No readable content detected", detail: "No extractable body text found — may be a JS-rendered app or blocked by the proxy.", fix: "Ensure content is server-rendered and visible in HTML source.", pts: 0 });
+  }
+
+  // ── Keyword Density (4 pts) ──
+  const stopwords = new Set(["the","and","for","are","was","you","with","this","that","from","have","had","not","but","been","will","all","one","more","they","when","there","their","also","into","its","can","than","then","your","our","about","which","what","would","could","should","some","were","does","him","her","has","his","may","any","most","also","both","each","just","only","such","very","much","more","over","after","other","first","because","before","those","though","through","where","being","these","while","after","upon","used","many","come","need"]);
+  const freq = {};
+  words.forEach(w => {
+    const clean = w.toLowerCase().replace(/[^a-z]/g, "");
+    if (clean.length > 3 && !stopwords.has(clean)) freq[clean] = (freq[clean] || 0) + 1;
+  });
+  const sorted = Object.entries(freq).sort((a,b) => b[1]-a[1]);
+  const topKeyword = sorted[0];
+  if (topKeyword) {
+    const density = ((topKeyword[1] / wordCount) * 100).toFixed(2);
+    if (density >= 0.5 && density <= 3.0) {
+      earned += 4;
+      checks.push({ status: "pass", title: `Keyword density OK (${density}%)`, detail: `Top keyword: "${topKeyword[0]}" appears ${topKeyword[1]} times (${density}%). Healthy range.`, pts: 4 });
+    } else if (density < 0.5) {
+      earned += 2;
+      checks.push({ status: "warn", title: `Low keyword density (${density}%)`, detail: `"${topKeyword[0]}" only appears ${topKeyword[1]} times. May not signal topical relevance.`, fix: "Naturally incorporate your target keyword 1–3% of total word count.", pts: 2 });
+    } else {
+      earned += 1;
+      checks.push({ status: "fail", title: `Keyword stuffing risk (${density}%)`, detail: `"${topKeyword[0]}" appears ${topKeyword[1]} times (${density}%). Exceeds 3% — Google may penalize.`, fix: "Reduce repetition and use semantic synonyms instead.", pts: 1 });
+    }
+  } else {
+    checks.push({ status: "warn", title: "No detectable keywords", detail: "Unable to identify meaningful keywords — content may be minimal or unextractable.", pts: 0 });
+  }
+
+  // ── Image Alt Text (6 pts) ──
+  const images = doc.querySelectorAll("img");
+  const totalImgs = images.length;
+  if (totalImgs === 0) {
+    earned += 3;
+    checks.push({ status: "warn", title: "No images found", detail: "No <img> elements detected. Images with alt text enhance content and can appear in image search.", fix: "Add relevant images with descriptive alt attributes.", pts: 3 });
+  } else {
+    let withAlt = 0;
+    images.forEach(img => { if (img.getAttribute("alt") !== null && img.getAttribute("alt").trim() !== "") withAlt++; });
+    const ratio = Math.round((withAlt / totalImgs) * 100);
+    if (ratio === 100) {
+      earned += 6;
+      checks.push({ status: "pass", title: `All images have alt text (${totalImgs} images)`, detail: `${withAlt}/${totalImgs} images have descriptive alt attributes. Excellent.`, pts: 6 });
+    } else if (ratio >= 70) {
+      earned += 4;
+      checks.push({ status: "warn", title: `${ratio}% of images have alt text`, detail: `${totalImgs - withAlt} images missing alt attributes.`, fix: "Add descriptive alt text to all images for accessibility and image search indexing.", pts: 4 });
+    } else {
+      earned += 1;
+      checks.push({ status: "fail", title: `Only ${ratio}% of images have alt text`, detail: `${totalImgs - withAlt} out of ${totalImgs} images lack alt attributes.`, fix: "Audit all images and write unique, descriptive alt text for each.", pts: 1 });
+    }
+  }
+
+  // ── Content structure (4 pts) ──
+  const hasParagraphs = doc.querySelectorAll("p").length > 0;
+  const hasLists = doc.querySelectorAll("ul, ol").length > 0;
+  if (hasParagraphs && hasLists) {
+    earned += 4;
+    checks.push({ status: "pass", title: "Good content structure", detail: "Page uses paragraphs and lists — well-structured content improves readability and dwell time.", pts: 4 });
+  } else if (hasParagraphs) {
+    earned += 2;
+    checks.push({ status: "warn", title: "No lists in content", detail: "Adding bullet/numbered lists improves scannability and can earn featured snippets.", fix: "Use <ul> or <ol> lists for steps, features, or comparisons.", pts: 2 });
+  } else {
+    checks.push({ status: "fail", title: "Poor content structure", detail: "No paragraphs or lists detected in content.", fix: "Structure content with <p> tags, lists, and headings.", pts: 0 });
+  }
+
+  return { earned, max, checks, label: "Content Quality" };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ANALYSIS MODULE 4: Technical SEO (25 pts)
+// ─────────────────────────────────────────────────────────────────
+function analyzeTechnical(doc, html, url) {
+  const checks = [];
+  let earned = 0;
+  const max = 25;
+
+  // ── Canonical Tag (5 pts) ──
+  const canonical = doc.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    checks.push({ status: "fail", title: "No canonical tag", detail: "Missing <link rel='canonical'> — duplicate content issues can arise without it.", fix: "Add a self-referencing canonical tag to every page.", pts: 0 });
+  } else {
+    const href = canonical.getAttribute("href") || "";
+    earned += 5;
+    checks.push({ status: "pass", title: "Canonical tag present", detail: `Points to: ${href.slice(0,70) || "(empty)"}`, pts: 5 });
+  }
+
+  // ── Schema Markup (5 pts) ──
+  const schemas = doc.querySelectorAll('script[type="application/ld+json"]');
+  const hasItemtype = html.includes('itemtype="') || html.includes("itemtype='");
+  if (schemas.length > 0 || hasItemtype) {
+    earned += 5;
+    checks.push({ status: "pass", title: `Schema markup detected (${schemas.length} LD+JSON block${schemas.length!==1?"s":""})`, detail: "Structured data helps search engines understand your content and enables rich results.", pts: 5 });
+  } else {
+    checks.push({ status: "fail", title: "No schema markup", detail: "No JSON-LD or microdata schema found. Missing opportunity for rich snippets.", fix: "Add appropriate Schema.org markup (Article, Product, FAQ, etc.) in JSON-LD format.", pts: 0 });
+  }
+
+  // ── Robots Meta Tag (5 pts) ──
+  const robotsMeta = doc.querySelector('meta[name="robots"]');
+  if (!robotsMeta) {
+    earned += 5;
+    checks.push({ status: "pass", title: "No robots blockers", detail: "No meta robots tag found — page is indexable by default. Good.", pts: 5 });
+  } else {
+    const content = (robotsMeta.getAttribute("content") || "").toLowerCase();
+    if (content.includes("noindex") || content.includes("nofollow")) {
+      checks.push({ status: "fail", title: `Robots meta blocks crawlers: "${content}"`, detail: "Page has noindex or nofollow directives that prevent Google from indexing or following links.", fix: "Remove noindex if you want this page to appear in search results.", pts: 0 });
+    } else {
+      earned += 5;
+      checks.push({ status: "pass", title: `Robots meta: "${content}"`, detail: "Page is set to be indexed and links followed.", pts: 5 });
+    }
+  }
+
+  // ── Viewport (Mobile) (5 pts) ──
+  const viewport = doc.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    earned += 5;
+    checks.push({ status: "pass", title: "Viewport meta tag present", detail: `Content: "${(viewport.getAttribute("content")||"").slice(0,60)}" — page is mobile-ready.`, pts: 5 });
+  } else {
+    checks.push({ status: "fail", title: "No viewport meta tag", detail: "Missing mobile viewport tag. Google uses mobile-first indexing — this is critical.", fix: 'Add: <meta name="viewport" content="width=device-width, initial-scale=1">', pts: 0 });
+  }
+
+  // ── CSS/JS Resource Count (5 pts) ──
+  const cssLinks = doc.querySelectorAll('link[rel="stylesheet"]');
+  const jsScripts = doc.querySelectorAll('script[src]');
+  const totalResources = cssLinks.length + jsScripts.length;
+  const hasInlineCSS = (doc.querySelector('style') !== null);
+
+  if (totalResources <= 10) {
+    earned += 3;
+    checks.push({ status: "pass", title: `Lean resource count (${totalResources} files)`, detail: `${cssLinks.length} stylesheets, ${jsScripts.length} scripts. Good for performance.`, pts: 3 });
+  } else if (totalResources <= 20) {
+    earned += 2;
+    checks.push({ status: "warn", title: `Moderate resources (${totalResources} files)`, detail: `${cssLinks.length} stylesheets, ${jsScripts.length} scripts. Consider bundling.`, fix: "Combine CSS/JS files and use a CDN to reduce request overhead.", pts: 2 });
+  } else {
+    earned += 1;
+    checks.push({ status: "fail", title: `High resource count (${totalResources} files)`, detail: `${cssLinks.length} CSS files and ${jsScripts.length} JS files may slow page load.`, fix: "Bundle assets, defer non-critical JS, and lazy-load images.", pts: 1 });
+  }
+
+  if (hasInlineCSS) {
+    earned += 2;
+    checks.push({ status: "pass", title: "Inline / critical CSS detected", detail: "Inlining critical CSS reduces render-blocking and improves LCP.", pts: 2 });
+  } else {
+    checks.push({ status: "warn", title: "No critical CSS inlined", detail: "Consider inlining above-the-fold CSS to reduce first-contentful-paint time.", fix: "Use a critical CSS extraction tool and inline the result in <head>.", pts: 0 });
+  }
+
+  return { earned, max, checks, label: "Technical SEO" };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ANALYSIS MODULE 5: Link Health (20 pts)
+// ─────────────────────────────────────────────────────────────────
+function analyzeLinks(doc, html, pageUrl) {
+  const checks = [];
+  let earned = 0;
+  const max = 20;
+
+  let pageHost = "";
+  try { pageHost = new URL(pageUrl).hostname; } catch(e) {}
+
+  const allLinks = doc.querySelectorAll("a[href]");
+  let internal = 0, external = 0, broken = 0, nofollow = 0, socialLinks = 0;
+  const socialDomains = ["twitter.com","x.com","facebook.com","linkedin.com","instagram.com","youtube.com","tiktok.com","github.com","pinterest.com"];
+
+  allLinks.forEach(a => {
+    const href = a.getAttribute("href") || "";
+    const rel = (a.getAttribute("rel") || "").toLowerCase();
+
+    // Detect broken links: empty href, javascript:void, or bare "#"
+    if (!href || href === "#" || href === "javascript:void(0)" || href === "javascript:;") {
+      broken++;
+      return;
+    }
+
+    // Classify internal vs external
+    let isExternal = false;
+    if (href.startsWith("http") || href.startsWith("//")) {
+      try {
+        const linkHost = new URL(href.startsWith("//") ? "https:" + href : href).hostname;
+        isExternal = linkHost !== pageHost;
+        if (isExternal) {
+          external++;
+          if (rel.includes("nofollow")) nofollow++;
+          if (socialDomains.some(d => linkHost.includes(d))) socialLinks++;
+        } else {
+          internal++;
+        }
+      } catch(e) { internal++; }
+    } else if (href.startsWith("mailto:") || href.startsWith("tel:")) {
+      // skip
+    } else {
+      internal++;
+    }
+  });
+
+  const total = internal + external;
+
+  // ── Internal vs External ratio (6 pts) ──
+  if (total === 0) {
+    checks.push({ status: "warn", title: "No links found", detail: "No anchor tags detected — linking to related content improves crawlability.", fix: "Add internal links to related pages and relevant external sources.", pts: 0 });
+  } else {
+    const intRatio = total > 0 ? Math.round((internal / total) * 100) : 0;
+    earned += 4;
+    checks.push({ status: "pass", title: `${internal} internal links, ${external} external`, detail: `${intRatio}% of links are internal. A strong internal linking structure distributes page authority.`, pts: 4 });
+  }
+
+  // ── Broken links (6 pts) ──
+  if (broken === 0) {
+    earned += 6;
+    checks.push({ status: "pass", title: "No obviously broken links", detail: "No empty, void, or bare # links found.", pts: 6 });
+  } else if (broken <= 3) {
+    earned += 3;
+    checks.push({ status: "warn", title: `${broken} potentially broken link${broken!==1?"s":""}`, detail: `Found ${broken} link${broken!==1?"s":""} with empty href or javascript:void(). These waste crawl budget.`, fix: "Replace placeholder links with real URLs or remove them.", pts: 3 });
+  } else {
+    checks.push({ status: "fail", title: `${broken} broken/empty links`, detail: `High number of dead links negatively affects user experience and crawl efficiency.`, fix: "Audit all links and fix or remove broken ones.", pts: 0 });
+  }
+
+  // ── Nofollow on externals (4 pts) ──
+  if (external === 0) {
+    earned += 2;
+    checks.push({ status: "warn", title: "No external links", detail: "Citing authoritative external sources can signal trustworthiness to search engines.", fix: "Link out to reputable sources where relevant.", pts: 2 });
+  } else if (external > 0 && nofollow >= Math.ceil(external * 0.5)) {
+    earned += 4;
+    checks.push({ status: "pass", title: `External links properly managed`, detail: `${nofollow}/${external} external links have rel="nofollow". Good practice for sponsored/user-generated links.`, pts: 4 });
+  } else {
+    earned += 2;
+    checks.push({ status: "warn", title: `${external - nofollow} external links without nofollow`, detail: `Consider adding rel="nofollow" or rel="sponsored" to commercial outbound links.`, fix: 'Add rel="nofollow" to paid links, user-generated content, and untrusted external links.', pts: 2 });
+  }
+
+  // ── Social links (4 pts) ──
+  if (socialLinks >= 2) {
+    earned += 4;
+    checks.push({ status: "pass", title: `${socialLinks} social media links found`, detail: "Social presence links help establish brand authority and cross-platform discoverability.", pts: 4 });
+  } else if (socialLinks === 1) {
+    earned += 2;
+    checks.push({ status: "warn", title: "Only 1 social media link", detail: "Linking to multiple social profiles strengthens brand signals.", fix: "Add links to all your active social media profiles.", pts: 2 });
+  } else {
+    checks.push({ status: "warn", title: "No social media links detected", detail: "Social proof links are a soft positive signal for brand authority.", fix: "Link to your Twitter/X, LinkedIn, and other active social profiles in the footer.", pts: 0 });
+  }
+
+  return { earned, max, checks, label: "Link Health" };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// RENDER RESULTS
+// ─────────────────────────────────────────────────────────────────
+function renderResults(data) {
+  const { pct, urlScore, metaScore, contentScore, techScore, linkScore } = data;
+
+  // Render score circle
+  renderScoreCircle(pct);
+
+  // Score heading
+  const heading = pct >= 80 ? "Your site is in great shape!" : pct >= 50 ? "Room for improvement." : "Significant issues found.";
+  const desc = pct >= 80
+    ? `A score of ${pct}/100 means your fundamentals are solid. Focus on fixing remaining warnings to reach the top tier.`
+    : pct >= 50
+    ? `A score of ${pct}/100 suggests several areas need attention. Addressing the 'Failed' checks below will have the most impact.`
+    : `A score of ${pct}/100 indicates critical SEO issues. Work through the failed checks below — each fix will improve rankings.`;
+
+  document.getElementById("score-heading").textContent = heading;
+  document.getElementById("score-display").textContent = pct + "%";
+  document.getElementById("score-display").style.color = pct >= 80 ? "var(--green)" : pct >= 50 ? "var(--orange)" : "var(--red)";
+  document.getElementById("score-description").textContent = desc;
+
+  const verdictEl = document.getElementById("score-verdict");
+  if (pct >= 80) {
+    verdictEl.className = "score-verdict verdict-good";
+    verdictEl.textContent = "✓ Healthy";
+  } else if (pct >= 50) {
+    verdictEl.className = "score-verdict verdict-warn";
+    verdictEl.textContent = "⚠ Needs Work";
+  } else {
+    verdictEl.className = "score-verdict verdict-bad";
+    verdictEl.textContent = "✕ Critical Issues";
+  }
+
+  // Category cards
+  const cats = [
+    { data: urlScore, icon: "🔗" },
+    { data: metaScore, icon: "🏷️" },
+    { data: contentScore, icon: "📝" },
+    { data: techScore, icon: "⚙️" },
+    { data: linkScore, icon: "🔀" },
+  ];
+  const grid = document.getElementById("cat-grid");
+  grid.innerHTML = "";
+  cats.forEach((cat, i) => {
+    const pctCat = Math.round((cat.data.earned / cat.data.max) * 100);
+    const barClass = pctCat >= 70 ? "bar-green" : pctCat >= 40 ? "bar-yellow" : "bar-red";
+    const scoreColor = pctCat >= 70 ? "var(--green)" : pctCat >= 40 ? "var(--yellow)" : "var(--red)";
+    const card = document.createElement("div");
+    card.className = "cat-card";
+    card.id = "cat-card-" + i;
+    card.innerHTML = `
+      <div class="cat-icon">${cat.icon}</div>
+      <div class="cat-name">${cat.data.label}</div>
+      <div class="cat-score" style="color:${scoreColor}">${cat.data.earned}<span class="cat-max">/${cat.data.max}</span></div>
+      <div class="cat-bar-wrap"><div class="cat-bar ${barClass}" style="width:${pctCat}%"></div></div>
+    `;
+    card.onclick = () => {
+      document.querySelectorAll(".cat-card").forEach(c => c.classList.remove("cat-card-active"));
+      card.classList.add("cat-card-active");
+      const accId = "accordion-" + i;
+      const el = document.getElementById(accId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        openAccordion(i);
+      }
+    };
+    grid.appendChild(card);
+  });
+
+  // Charts
+  renderRadarChart(cats);
+  renderIssueChart(cats);
+
+  // Accordion findings
+  const findingsEl = document.getElementById("findings");
+  findingsEl.innerHTML = "";
+  cats.forEach((cat, i) => {
+    const pctCat = Math.round((cat.data.earned / cat.data.max) * 100);
+    const scoreColor = pctCat >= 70 ? "var(--green)" : pctCat >= 40 ? "var(--yellow)" : "var(--red)";
+    const acc = document.createElement("div");
+    acc.className = "accordion-item";
+    acc.id = "accordion-" + i;
+
+    const checksHTML = cat.data.checks.map(c => {
+      const icon = c.status === "pass" ? "✓" : c.status === "warn" ? "⚠" : "✕";
+      return `<div class="check-item ${c.status}">
+        <div class="check-status">${icon}</div>
+        <div class="check-content">
+          <div class="check-title">${c.title}</div>
+          <div class="check-detail">${c.detail}</div>
+          ${c.fix ? `<div class="check-fix">${c.fix}</div>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+
+    acc.innerHTML = `
+      <div class="accordion-header" onclick="toggleAccordion(${i})">
+        <span class="accordion-icon">${cat.icon}</span>
+        <span class="accordion-title">${cat.data.label}</span>
+        <div class="accordion-meta">
+          <span class="acc-score" style="color:${scoreColor}">${cat.data.earned}/${cat.data.max} pts</span>
+          <span class="acc-chevron" id="chevron-${i}">▾</span>
+        </div>
+      </div>
+      <div class="accordion-body" id="body-${i}">
+        <div class="check-list">${checksHTML}</div>
+      </div>`;
+    findingsEl.appendChild(acc);
+  });
+
+  document.getElementById("results").style.display = "block";
+  document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function toggleAccordion(i) {
+  const body = document.getElementById("body-" + i);
+  const chev = document.getElementById("chevron-" + i);
+  const isOpen = body.classList.contains("open");
+  body.classList.toggle("open", !isOpen);
+  chev.classList.toggle("open", !isOpen);
+}
+function openAccordion(i) {
+  const body = document.getElementById("body-" + i);
+  const chev = document.getElementById("chevron-" + i);
+  body.classList.add("open");
+  chev.classList.add("open");
+}
+
+// ─── Score Donut ────────────────────────────────────────────────
+function renderScoreCircle(pct) {
+  if (chartInstances.donut) { chartInstances.donut.destroy(); }
+  const color = pct >= 80 ? "#10b981" : pct >= 50 ? "#f97316" : "#ef4444";
+  chartInstances.donut = new Chart(document.getElementById("scoreDonut"), {
+    type: "doughnut",
+    data: {
+      datasets: [{
+        data: [pct, 100 - pct],
+        backgroundColor: [color, "#1e2330"],
+        borderWidth: 0,
+        borderRadius: [4, 0],
+      }]
+    },
+    options: {
+      responsive: false, cutout: "80%",
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      animation: { duration: 800, easing: "easeOutQuart" }
+    }
+  });
+}
+
+// ─── Radar Chart ────────────────────────────────────────────────
+function renderRadarChart(cats) {
+  if (chartInstances.radar) { chartInstances.radar.destroy(); }
+  const labels = cats.map(c => c.data.label.split(" ")[0]);
+  const values = cats.map(c => Math.round((c.data.earned / c.data.max) * 100));
+  chartInstances.radar = new Chart(document.getElementById("radarChart"), {
+    type: "radar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Score %",
+        data: values,
+        backgroundColor: "rgba(99,102,241,0.15)",
+        borderColor: "#6366f1",
+        borderWidth: 2,
+        pointBackgroundColor: "#6366f1",
+        pointRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        r: {
+          min: 0, max: 100,
+          grid: { color: "rgba(255,255,255,0.07)" },
+          ticks: { display: false },
+          pointLabels: { color: "#9ca3af", font: { size: 11 } },
+          angleLines: { color: "rgba(255,255,255,0.07)" }
+        }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ─── Issue Doughnut ─────────────────────────────────────────────
+function renderIssueChart(cats) {
+  if (chartInstances.issue) { chartInstances.issue.destroy(); }
+  let passed = 0, warned = 0, failed = 0;
+  cats.forEach(c => c.data.checks.forEach(ch => {
+    if (ch.status === "pass") passed++;
+    else if (ch.status === "warn") warned++;
+    else failed++;
+  }));
+  chartInstances.issue = new Chart(document.getElementById("issueChart"), {
+    type: "doughnut",
+    data: {
+      labels: ["Passed", "Warnings", "Failed"],
+      datasets: [{
+        data: [passed, warned, failed],
+        backgroundColor: ["#10b981", "#f59e0b", "#ef4444"],
+        borderWidth: 0,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: "65%",
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// DOWNLOAD REPORT
+// ─────────────────────────────────────────────────────────────────
+function downloadReport(format) {
+  if (!auditData.url) { alert("Run a scan first."); return; }
+  const { url, pct, urlScore, metaScore, contentScore, techScore, linkScore, fetchFailed } = auditData;
+  const now = new Date().toLocaleString();
+
+  if (format === "txt") {
+    // Plain text report
+    let lines = [
+      "SEO AUDIT REPORT",
+      "Generated by SEO Audit Pro",
+      `Date: ${now}`,
+      `URL: ${url}`,
+      `Overall Score: ${pct}/100`,
+      "=".repeat(60),
+      ""
+    ];
+    [urlScore, metaScore, contentScore, techScore, linkScore].forEach(cat => {
+      lines.push(`## ${cat.label} — ${cat.earned}/${cat.max} pts`);
+      cat.checks.forEach(c => {
+        const icon = c.status === "pass" ? "[PASS]" : c.status === "warn" ? "[WARN]" : "[FAIL]";
+        lines.push(`  ${icon} ${c.title}`);
+        lines.push(`         ${c.detail}`);
+        if (c.fix) lines.push(`         → Fix: ${c.fix}`);
+      });
+      lines.push("");
+    });
+    if (fetchFailed) lines.push("NOTE: HTML content could not be fetched. Some checks were URL-only.");
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    triggerDownload(blob, `seo-report-${Date.now()}.txt`);
+  } else {
+    // HTML report
+    const catBlocks = [urlScore, metaScore, contentScore, techScore, linkScore].map(cat => {
+      const rows = cat.checks.map(c => {
+        const bg = c.status === "pass" ? "#d1fae5" : c.status === "warn" ? "#fef3c7" : "#fee2e2";
+        const icon = c.status === "pass" ? "✓" : c.status === "warn" ? "⚠" : "✕";
+        return `<tr style="background:${bg}">
+          <td style="padding:8px 12px;font-size:13px;border-bottom:1px solid #e5e7eb;">${icon}</td>
+          <td style="padding:8px 12px;font-size:13px;border-bottom:1px solid #e5e7eb;font-weight:600;">${c.title}</td>
+          <td style="padding:8px 12px;font-size:13px;border-bottom:1px solid #e5e7eb;color:#374151;">${c.detail}${c.fix ? `<br><em style='color:#6b7280'>→ ${c.fix}</em>` : ""}</td>
+        </tr>`;
+      }).join("");
+      return `<h2 style="margin:24px 0 8px;font-size:18px;">${cat.label} — ${cat.earned}/${cat.max} pts</h2>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <thead><tr style="background:#f9fafb;"><th style="padding:10px 12px;text-align:left;font-size:12px;color:#6b7280;"></th><th style="padding:10px 12px;text-align:left;font-size:12px;color:#6b7280;">Check</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:#6b7280;">Detail</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    }).join("\n");
+
+    const scoreColor = pct >= 80 ? "#10b981" : pct >= 50 ? "#f97316" : "#ef4444";
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SEO Report — ${url}</title>
+    <style>body{font-family:system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 24px;color:#111827;}
+    </style></head><body>
+    <h1 style="font-size:28px;letter-spacing:-0.02em;margin-bottom:4px;">SEO Audit Report</h1>
+    <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">Generated ${now} · <a href="${url}">${url}</a></p>
+    <div style="display:flex;align-items:center;gap:16px;background:#f9fafb;padding:20px 24px;border-radius:12px;margin-bottom:32px;border:1px solid #e5e7eb;">
+      <div style="font-size:52px;font-weight:700;color:${scoreColor}">${pct}%</div>
+      <div><div style="font-size:18px;font-weight:600;">Overall SEO Health Score</div>
+      <div style="color:#6b7280;font-size:13px;">${pct >= 80 ? "✓ Healthy" : pct >= 50 ? "⚠ Needs Work" : "✕ Critical Issues"}</div></div>
+    </div>
+    ${catBlocks}
+    ${fetchFailed ? '<p style="color:#9ca3af;font-size:12px;margin-top:24px;">⚠ HTML content could not be fetched via proxy. Some checks were URL-only.</p>' : ""}
+    </body></html>`;
+    const blob = new Blob([html], { type: "text/html" });
+    triggerDownload(blob, `seo-report-${Date.now()}.html`);
+  }
+}
+
+function triggerDownload(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ─── Error display ───────────────────────────────────────────────
+function showError(title, detail) {
+  document.getElementById("err-title").textContent = "⚠️ " + title;
+  document.getElementById("err-detail").textContent = detail;
+  document.getElementById("error-box").style.display = "block";
+  document.getElementById("log-dot").className = "log-dot idle";
+}
+
+// ─── Allow Enter key to trigger scan ────────────────────────────
+document.getElementById("url-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") startScan();
+});
+</script>
+</body>
+</html>
